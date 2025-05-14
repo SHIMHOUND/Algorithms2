@@ -1,13 +1,14 @@
 import time
 import matplotlib.pyplot as plt
+from collections import defaultdict
 
-# Загрузка текста
+# === Загрузка текста ===
 with open("english_words.txt", "r", encoding="utf-8") as f:
     full_text = f.read()
 
 text = full_text.replace('\n', ' ')
 
-# Алгоритмы
+# === Алгоритмы поиска подстроки ===
 def brute_force(text, pattern):
     n, m = len(text), len(pattern)
     for i in range(n - m + 1):
@@ -92,7 +93,7 @@ def rabin_karp(text, pattern, prime=101):
     d = 256
     n = len(text)
     m = len(pattern)
-    h = pow(d, m-1) % prime
+    h = pow(d, m-1, prime)
     p = t = 0
 
     for i in range(m):
@@ -104,7 +105,7 @@ def rabin_karp(text, pattern, prime=101):
             if text[s:s + m] == pattern:
                 return s
         if s < n - m:
-            t = (d*(t - ord(text[s])*h) + ord(text[s + m])) % prime
+            t = (d * (t - ord(text[s]) * h) + ord(text[s + m])) % prime
             if t < 0:
                 t += prime
     return -1
@@ -130,7 +131,7 @@ def gusfield_z(text, pattern):
             return i - m - 1
     return -1
 
-# Алгоритмы
+# === Список алгоритмов ===
 algorithms = {
     "Brute-force": brute_force,
     "Sunday": sunday,
@@ -140,7 +141,7 @@ algorithms = {
     "Gusfield-Z": gusfield_z,
 }
 
-# Измерение времени
+# === Замер времени выполнения ===
 def measure_time(algorithm, text, pattern):
     start = time.perf_counter()
     algorithm(text, pattern)
@@ -160,7 +161,7 @@ for length in lengths:
         results_short[name].append(measure_time(algo, t, short_pattern))
         results_long[name].append(measure_time(algo, t, long_pattern))
 
-# Графики для Part A
+# === Графики Part A ===
 fig, axs = plt.subplots(1, 2, figsize=(16, 6))
 for name in algorithms:
     axs[0].plot(lengths, results_short[name], label=name)
@@ -182,7 +183,6 @@ plt.show()
 
 # === Part B ===
 
-# Входы
 T = "a" * 100_000 + "b"
 P1 = "b"
 P2 = "aaaa"
@@ -205,11 +205,53 @@ def compare_and_plot(name1, name2, text, pattern, title):
     plt.grid(True, axis='y')
     plt.show()
 
-# Sunday vs Gusfield-Z
 compare_and_plot("Gusfield-Z", "Sunday", T, P1, "Gusfield-Z vs Sunday (P = 'b')")
-
-# KMP vs Rabin-Karp
 compare_and_plot("Rabin-Karp", "KMP", T, P2, "Rabin-Karp vs KMP (P = 'aaaa')")
-
-# Rabin-Karp vs Sunday
 compare_and_plot("Sunday", "Rabin-Karp", T, P3, "Sunday vs Rabin-Karp (P = 'a'*100)")
+
+# === Part Two — for mark 4: Aunt's Namesday ===
+
+guests = [
+    "Alice", "Bob", "Charlie", "Daisy", "Eve", "Frank"
+]
+
+dislikes = [
+    ("Alice", "Bob"),
+    ("Charlie", "Daisy"),
+    ("Bob", "Eve"),
+    ("Eve", "Frank"),
+    ("Frank", "Alice")  # Creates an odd cycle — not bipartite
+]
+
+graph = defaultdict(list)
+for a, b in dislikes:
+    graph[a].append(b)
+    graph[b].append(a)
+
+def assign_tables(graph, guests):
+    color = {}
+    for guest in guests:
+        if guest in color:
+            continue
+        stack = [(guest, 0)]
+        while stack:
+            current, c = stack.pop()
+            if current in color:
+                if color[current] != c:
+                    return None
+                continue
+            color[current] = c
+            for neighbor in graph[current]:
+                stack.append((neighbor, 1 - c))
+    table1 = [g for g in guests if color.get(g, 0) == 0]
+    table2 = [g for g in guests if color.get(g, 0) == 1]
+    return table1, table2
+
+print("\n=== Aunt's Namesday Sitting Scheme ===")
+result = assign_tables(graph, guests)
+if result is None:
+    print("Impossible to assign guests to two tables without conflicts.")
+else:
+    table1, table2 = result
+    print("Table 1:", table1)
+    print("Table 2:", table2)
