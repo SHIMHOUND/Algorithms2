@@ -2,7 +2,7 @@ import time
 import matplotlib.pyplot as plt
 from collections import defaultdict
 
-# === Загрузка текста ===
+# === loading of data ===
 with open("english_words.txt", "r", encoding="utf-8") as f:
     full_text = f.read()
 
@@ -91,9 +91,8 @@ def fsm_search(text, pattern):
 
 def rabin_karp(text, pattern, prime=101):
     d = 256
-    n = len(text)
-    m = len(pattern)
-    h = pow(d, m-1, prime)
+    n, m = len(text), len(pattern)
+    h = pow(d, m - 1, prime)
     p = t = 0
 
     for i in range(m):
@@ -131,7 +130,7 @@ def gusfield_z(text, pattern):
             return i - m - 1
     return -1
 
-# === Список алгоритмов ===
+# === Список алгоритмов, lists of the algorithms ===
 algorithms = {
     "Brute-force": brute_force,
     "Sunday": sunday,
@@ -141,7 +140,7 @@ algorithms = {
     "Gusfield-Z": gusfield_z,
 }
 
-# === Замер времени выполнения ===
+# === Замер времени, time meter===
 def measure_time(algorithm, text, pattern):
     start = time.perf_counter()
     algorithm(text, pattern)
@@ -182,7 +181,6 @@ plt.tight_layout()
 plt.show()
 
 # === Part B ===
-
 T = "a" * 100_000 + "b"
 P1 = "b"
 P2 = "aaaa"
@@ -209,18 +207,14 @@ compare_and_plot("Gusfield-Z", "Sunday", T, P1, "Gusfield-Z vs Sunday (P = 'b')"
 compare_and_plot("Rabin-Karp", "KMP", T, P2, "Rabin-Karp vs KMP (P = 'aaaa')")
 compare_and_plot("Sunday", "Rabin-Karp", T, P3, "Sunday vs Rabin-Karp (P = 'a'*100)")
 
-# === Part Two — for mark 4: Aunt's Namesday ===
-
-guests = [
-    "Alice", "Bob", "Charlie", "Daisy", "Eve", "Frank"
-]
-
+# === Part Two — Aunt's Namesday ===
+guests = ["Alice", "Bob", "Charlie", "Daisy", "Eve", "Frank"]
 dislikes = [
     ("Alice", "Bob"),
     ("Charlie", "Daisy"),
     ("Bob", "Eve"),
     ("Eve", "Frank"),
-    ("Frank", "Alice")  # Creates an odd cycle — not bipartite
+    ("Frank", "Alice")  # Not bipartite
 ]
 
 graph = defaultdict(list)
@@ -255,3 +249,157 @@ else:
     table1, table2 = result
     print("Table 1:", table1)
     print("Table 2:", table2)
+
+
+def parse_pattern(pattern):
+    """Разбирает шаблон с учетом экранирования"""
+    parsed = []
+    i = 0
+    while i < len(pattern):
+        if pattern[i] == '\\':
+            if i + 1 < len(pattern):
+                parsed.append(('char', pattern[i + 1]))
+                i += 2
+            else:
+                parsed.append(('char', '\\'))
+                i += 1
+        elif pattern[i] == '*':
+            parsed.append(('star', '*'))
+            i += 1
+        elif pattern[i] == '?':
+            parsed.append(('any', '?'))
+            i += 1
+        else:
+            parsed.append(('char', pattern[i]))
+            i += 1
+    return parsed
+
+
+def match_wildcard_at(text, t_idx, parsed_pattern, p_idx):
+    """Проверяет, совпадает ли шаблон с подстрокой text[t_idx:]"""
+    while p_idx < len(parsed_pattern):
+        token_type, token_val = parsed_pattern[p_idx]
+        if token_type == 'star':
+            # '*' — пробуем все возможные позиции
+            for skip in range(len(text) - t_idx + 1):
+                if match_wildcard_at(text, t_idx + skip, parsed_pattern, p_idx + 1):
+                    return True
+            return False
+        elif token_type == 'any':
+            if t_idx >= len(text):
+                return False
+            t_idx += 1
+            p_idx += 1
+        elif token_type == 'char':
+            if t_idx >= len(text) or text[t_idx] != token_val:
+                return False
+            t_idx += 1
+            p_idx += 1
+    return t_idx == len(text)
+
+
+def brute_force_wildcard(text, pattern):
+    """Brute-force с поддержкой ?, *, \\ """
+    parsed_pattern = parse_pattern(pattern)
+    for i in range(len(text)):
+        if match_wildcard_at(text, i, parsed_pattern, 0):
+            return True
+    return False
+
+
+def sunday_wildcard(text, pattern):
+    """Sunday с поддержкой ?, *, \\ """
+    parsed_pattern = parse_pattern(pattern)
+    pattern_len_est = sum(1 for t in parsed_pattern if t[0] != 'star')
+    n = len(text)
+    i = 0
+    while i <= n - pattern_len_est:
+        if match_wildcard_at(text, i, parsed_pattern, 0):
+            return True
+        next_index = i + pattern_len_est
+        if next_index < n:
+            next_char = text[next_index]
+            shift = pattern_len_est + 1
+            for j in range(len(parsed_pattern) - 1, -1, -1):
+                token_type, token_val = parsed_pattern[j]
+                if token_type == 'char' and token_val == next_char:
+                    shift = len(parsed_pattern) - j
+                    break
+            i += shift
+        else:
+            break
+    return False
+
+
+# === Примеры использования, Examples of use ===
+
+tests = [
+    ("hello world", "he*o", True),
+    ("hello world", "he??o", False),
+    ("file.txt", "file\\.*", True),
+    ("abcde", "a*d?", True),
+    ("abc", "a\\*c", False),
+    ("abc", "a\\?c", False),
+    ("a*c", "a\\*c", True),
+    ("a?c", "a\\?c", True),
+    ("a\\c", "a\\\\c", True),
+]
+
+print("=== Tests of Brute-force ===")
+for text, pattern, expected in tests:
+    result = brute_force_wildcard(text, pattern)
+    print(f"Pattern: {pattern}, Text: {text} → {result} (Expected: {expected})")
+
+print("\n=== Tests of Sunday ===")
+for text, pattern, expected in tests:
+    result = sunday_wildcard(text, pattern)
+    print(f"Pattern: {pattern}, Text: {text} → {result} (Expected: {expected})")
+
+
+# === Part Three — Jewish-style Carp ===
+def hash_2d_block(block, base_row=256, base_col=257, mask=(1 << 64) - 1):
+    k = len(block)
+    h = 0
+    for i in range(k):
+        row_hash = 0
+        for j in range(k):
+            row_hash = ((row_hash * base_col) + hash(block[i][j])) & mask
+        h = ((h * base_row) + row_hash) & mask
+    return h
+
+def get_block(matrix, x, y, k):
+    return [row[y:y + k] for row in matrix[x:x + k]]
+
+def rabin_karp_2d(matrix, k):
+    if not matrix or not matrix[0] or k == 0:
+        return False
+
+    m, n = len(matrix), len(matrix[0])
+    if k > m or k > n:
+        return False
+
+    pattern = [row[n - k:] for row in matrix[:k]]
+    pattern_hash = hash_2d_block(pattern)
+
+    for i in range(m - k + 1):
+        for j in range(n - k + 1):
+            if i == 0 and j == n - k:
+                continue
+            block = get_block(matrix, i, j, k)
+            if hash_2d_block(block) == pattern_hash:
+                if block == pattern:
+                    return True
+    return False
+
+# === Проверка Carp, test Carp ===
+picture = [
+    [1, 2, 3, 4],
+    [5, 6, 7, 8],
+    [9, 1, 2, 3],
+    [4, 5, 6, 7],
+]
+K = 2
+print("\n=== Jewish-style Carp ===")
+print("Duplicate found:" if rabin_karp_2d(picture, K) else "No duplicate found.")
+
+
